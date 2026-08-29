@@ -1448,25 +1448,26 @@ async function S1(e, uEmail) {
   } catch(err) {}
 }
 async function N1(e){let item={...e};if(!item.id)item.id="cat_"+Date.now();try{if(e.id){await L.from("categories").update(item).eq("id",e.id)}else{await L.from("categories").insert(item)}}catch(err){}try{const saved=JSON.parse(localStorage.getItem("admin_categories")||"[]");const idx=saved.findIndex(c=>c.id===item.id);if(idx>=0)saved[idx]=item;else saved.push(item);localStorage.setItem("admin_categories",JSON.stringify(saved))}catch(err){}return item}async function C1(e){try{await L.from("categories").delete().eq("id",e)}catch(err){}try{const saved=JSON.parse(localStorage.getItem("admin_categories")||"[]");const filtered=saved.filter(c=>c.id!==e);localStorage.setItem("admin_categories",JSON.stringify(filtered))}catch(err){}}async function E1(e){let item={...e};if(!item.id)item.id="loc_"+Date.now();try{if(e.id){await L.from("locations").update(item).eq("id",e.id)}else{await L.from("locations").insert(item)}}catch(err){}try{const saved=JSON.parse(localStorage.getItem("admin_locations")||"[]");const idx=saved.findIndex(l=>l.id===item.id);if(idx>=0)saved[idx]=item;else saved.push(item);localStorage.setItem("admin_locations",JSON.stringify(saved))}catch(err){}return item}async function P1(e){try{await L.from("locations").delete().eq("id",e)}catch(err){}try{const saved=JSON.parse(localStorage.getItem("admin_locations")||"[]");const filtered=saved.filter(l=>l.id!==e);localStorage.setItem("admin_locations",JSON.stringify(filtered))}catch(err){}}async function R1(e){let item={...e};if(!item.id)item.id="banner_"+Date.now()+"_"+Math.random().toString(36).slice(2);try{if(e.id){const{error:t}=await L.from("banners").update(item).eq("id",e.id);if(t)console.warn("Supabase banner update error:",t)}else{const{error:t}=await L.from("banners").insert(item);if(t)console.warn("Supabase banner insert error:",t)}}catch(err){console.warn("Banner save fallback to local:",err)}try{const saved=JSON.parse(localStorage.getItem("admin_banners")||"[]");const idx=saved.findIndex(b=>b.id===item.id);if(idx>=0)saved[idx]=item;else saved.push(item);localStorage.setItem("admin_banners",JSON.stringify(saved))}catch(err){}return item}async function T1(e){try{await L.from("banners").delete().eq("id",e)}catch(err){}try{const saved=JSON.parse(localStorage.getItem("admin_banners")||"[]");const filtered=saved.filter(b=>b.id!==e);localStorage.setItem("admin_banners",JSON.stringify(filtered))}catch(err){}}async function L1(e){let item={...e};if(!item.id)item.id="plan_"+Date.now()+"_"+Math.random().toString(36).slice(2,7);try{const{data:existing}=await L.from("pro_plans").select("id").eq("id",item.id).maybeSingle();if(existing){await L.from("pro_plans").update(item).eq("id",item.id)}else{await L.from("pro_plans").insert(item)}}catch(err){}try{const saved=JSON.parse(localStorage.getItem("admin_plans")||"[]");const idx=saved.findIndex(p=>p.id===item.id);if(idx>=0)saved[idx]=item;else saved.push(item);localStorage.setItem("admin_plans",JSON.stringify(saved))}catch(err){}return item}async function O1(e){try{await L.from("pro_plans").delete().eq("id",e)}catch(err){}try{let saved=JSON.parse(localStorage.getItem("admin_plans")||"[]");saved=saved.filter(p=>p.id!==e);saved.push({id:e,is_deleted:!0,is_active:!1});localStorage.setItem("admin_plans",JSON.stringify(saved))}catch(err){}}async function A1(e,t,n){
-  const cleanVal = typeof t === "string" ? t.trim() : t;
-  try{
-    const{error:r}=await L.from("settings").upsert({key:e,value:cleanVal,is_public:n,updated_at:new Date().toISOString()},{onConflict:"key"});
-    if(r){
-      await L.from("settings").update({value:cleanVal,is_public:n,updated_at:new Date().toISOString()}).eq("key",e);
+  const cleanVal = typeof t === "string" ? t.trim() : (t !== undefined && t !== null ? String(t) : "");
+  try {
+    L.from("settings").upsert({key:e, value:cleanVal, is_public:n, updated_at:new Date().toISOString()}, {onConflict:"key"}).then(res => {
+      if (res && res.error) {
+        L.from("settings").update({value:cleanVal, is_public:n, updated_at:new Date().toISOString()}).eq("key",e);
+      }
+    }).catch(()=>{});
+  } catch(err){}
+  try {
+    const saved = JSON.parse(localStorage.getItem("admin_settings") || "{}");
+    saved[e] = {key:e, value:cleanVal, is_public:n, updated_at:new Date().toISOString()};
+    localStorage.setItem("admin_settings", JSON.stringify(saved));
+    if (e === "upi_id") {
+      localStorage.setItem("settings_upi_id", cleanVal);
+      localStorage.setItem("app_upi_id", cleanVal);
     }
-  }catch(err){console.warn("Settings upsert fallback:",err)}
-  try{
-    const saved=JSON.parse(localStorage.getItem("admin_settings")||"{}");
-    saved[e]={key:e,value:cleanVal,is_public:n,updated_at:new Date().toISOString()};
-    localStorage.setItem("admin_settings",JSON.stringify(saved));
-    if(e==="upi_id"){
-      localStorage.setItem("settings_upi_id",cleanVal);
-      localStorage.setItem("app_upi_id",cleanVal);
+    if (typeof window !== "undefined") {
+      window.dispatchEvent(new CustomEvent("app_settings_updated", { detail: { key: e, value: cleanVal } }));
     }
-    if(typeof window!=="undefined"){
-      window.dispatchEvent(new CustomEvent("app_settings_updated",{detail:{key:e,value:cleanVal}}));
-    }
-  }catch(err){}
+  } catch(err){}
 }async function $1(e){const{data:t,error:n}=await L.from("favorites").select(`
       *,
       listing:listings(
@@ -1560,42 +1561,44 @@ async function x1(){
     {key:"admob_rewarded_ad_unit_id",value:"",is_public:!1}
   ];
   defaults.forEach(item => { result[item.key] = item; });
-
-  try {
-    const {data: e, error: t} = await L.from("settings").select("*");
-    if (!t && e && Array.isArray(e)) {
-      e.forEach(r => {
-        if (r && r.key) {
-          result[r.key] = {
-            key: r.key,
-            value: r.value,
-            is_public: r.is_public !== undefined ? r.is_public : true
-          };
-        }
-      });
-    }
-  } catch(err){}
-
   try {
     const saved = JSON.parse(localStorage.getItem("admin_settings") || "{}");
     Object.keys(saved).forEach(k => {
-      if (saved[k] && saved[k].value !== undefined) {
-        result[k] = {
-          key: k,
-          value: saved[k].value,
-          is_public: saved[k].is_public !== undefined ? saved[k].is_public : true
-        };
+      if (saved[k] && saved[k].value !== undefined && saved[k].value !== null) {
+        result[k] = { key: k, value: String(saved[k].value), is_public: saved[k].is_public !== undefined ? saved[k].is_public : true };
       }
     });
     const directUpi = localStorage.getItem("settings_upi_id") || localStorage.getItem("app_upi_id");
-    if (directUpi && directUpi.includes("@") && !directUpi.includes(" ")) {
-      result["upi_id"] = { key: "upi_id", value: directUpi.trim(), is_public: true };
+    if (directUpi !== null && directUpi !== undefined && directUpi !== "") {
+      result["upi_id"] = { key: "upi_id", value: String(directUpi).trim(), is_public: true };
     }
   } catch(err){}
-
-  return Object.values(result);
-}
-const Qp=Jp;
+  return (async () => {
+    try {
+      const {data: e, error: t} = await L.from("settings").select("*");
+      if (!t && e && Array.isArray(e)) {
+        e.forEach(r => {
+          if (r && r.key && r.value !== undefined && r.value !== null) {
+            result[r.key] = { key: r.key, value: String(r.value), is_public: r.is_public !== undefined ? r.is_public : true };
+          }
+        });
+      }
+    } catch(err){}
+    try {
+      const saved = JSON.parse(localStorage.getItem("admin_settings") || "{}");
+      Object.keys(saved).forEach(k => {
+        if (saved[k] && saved[k].value !== undefined && saved[k].value !== null) {
+          result[k] = { key: k, value: String(saved[k].value), is_public: saved[k].is_public !== undefined ? saved[k].is_public : true };
+        }
+      });
+      const directUpi = localStorage.getItem("settings_upi_id") || localStorage.getItem("app_upi_id");
+      if (directUpi !== null && directUpi !== undefined && directUpi !== "") {
+        result["upi_id"] = { key: "upi_id", value: String(directUpi).trim(), is_public: true };
+      }
+    } catch(err){}
+    return Object.values(result);
+  })();
+}const Qp=Jp;
 async function Yp(e){if(!e)return new Set();try{const{data:t,error:n}=await L.from("favorites").select("listing_id").eq("user_id",e);return(n||!t)?new Set():new Set(t.map(r=>r.listing_id));}catch(err){return new Set();}}async function Ca(e,t){const{error:n}=await L.from("favorites").insert({user_id:e,listing_id:t});if(n&&n.code!=="23505")throw n}async function Ea(e,t){const{error:n}=await L.from("favorites").delete().eq("user_id",e).eq("listing_id",t);if(n)throw n}async function D1(e){
   let chats = [];
   try {
@@ -2475,44 +2478,34 @@ const googleSvgIcon=a.jsx("svg",{className:"w-5 h-5",viewBox:"0 0 24 24",childre
   return list;
 }
 async function X1(e){const{data:t,error:n}=await L.from("transactions").select("*").eq("user_id",e).order("created_at",{ascending:!1});if(n)throw n;return t}async function Z1(e,t){const n=e.name.split(".").pop()||"jpg",r=`avatars/${t}-${Date.now()}.${n}`,{data:s,error:i}=await L.storage.from("media").upload(r,e,{contentType:e.type,upsert:!0});if(i)throw i;const{data:l}=L.storage.from("media").getPublicUrl(s.path);return l.publicUrl}async function ej(e,t){const n=e.name.split(".").pop()||"jpg",r=`proofs/${t}-${Date.now()}.${n}`,{data:s,error:i}=await L.storage.from("media").upload(r,e,{contentType:e.type,upsert:!1});if(i)throw i;const{data:l}=L.storage.from("media").getPublicUrl(s.path);return l.publicUrl}async function tj(){
-  const n={
-    upi_id:"grejamarak@oksbi",
-    payment_instructions:"1. Open any UPI app (GPay, PhonePe, Paytm). 2. Scan the QR code or pay to the UPI ID shown. 3. Enter the exact amount for your chosen plan. 4. After payment, copy the UTR/Transaction ID. 5. Come back and submit the UTR to activate your PRO membership.",
-    tutorial_video_title:"How to pay for PRO membership",
-    tutorial_active:"false"
+  const n = {
+    upi_id: (typeof window !== "undefined" && (localStorage.getItem("settings_upi_id") || localStorage.getItem("app_upi_id"))) || "grejamarak@oksbi",
+    payment_instructions: "1. Open any UPI app (GPay, PhonePe, Paytm). 2. Scan the QR code or pay to the UPI ID shown. 3. Enter the exact amount for your chosen plan. 4. After payment, copy the UTR/Transaction ID. 5. Come back and submit the UTR to activate your PRO membership.",
+    tutorial_video_title: "How to pay for PRO membership",
+    tutorial_active: "false"
   };
-  try{
-    const{data:e,error:t}=await L.from("settings").select("key, value").eq("is_public",!0);
-    if(!t&&e&&Array.isArray(e)){
-      e.forEach(r=>{
-        if(r.key==="upi_id"){
-          if(r.value&&typeof r.value==="string"&&r.value.includes("@")&&!r.value.includes(" ")){
-            n[r.key]=r.value.trim();
-          }
-        }else if(r.value!==undefined&&r.value!==null){
-          n[r.key]=r.value;
+  try {
+    const {data: e, error: t} = await L.from("settings").select("key, value").eq("is_public", !0);
+    if (!t && e && Array.isArray(e)) {
+      e.forEach(r => {
+        if (r.key && r.value !== undefined && r.value !== null) {
+          n[r.key] = String(r.value);
         }
       });
     }
-  }catch(err){}
-  try{
-    const local=JSON.parse(localStorage.getItem("admin_settings")||"{}");
-    Object.keys(local).forEach(k=>{
-      if(local[k]&&local[k].value!==undefined&&local[k].value!==null){
-        if(k==="upi_id"){
-          if(typeof local[k].value==="string"&&local[k].value.includes("@")&&!local[k].value.includes(" ")){
-            n[k]=local[k].value.trim();
-          }
-        }else{
-          n[k]=local[k].value;
-        }
+  } catch(err){}
+  try {
+    const local = JSON.parse(localStorage.getItem("admin_settings") || "{}");
+    Object.keys(local).forEach(k => {
+      if (local[k] && local[k].value !== undefined && local[k].value !== null) {
+        n[k] = String(local[k].value);
       }
     });
-    const directUpi=localStorage.getItem("settings_upi_id")||localStorage.getItem("app_upi_id");
-    if(directUpi&&directUpi.includes("@")&&!directUpi.includes(" ")){
-      n.upi_id=directUpi.trim();
+    const directUpi = localStorage.getItem("settings_upi_id") || localStorage.getItem("app_upi_id");
+    if (directUpi !== null && directUpi !== undefined && directUpi !== "") {
+      n.upi_id = String(directUpi).trim();
     }
-  }catch(err){}
+  } catch(err){}
   return n;
 }function nj(){
   const{user:e,profile:t}=Ae(),n=he(),r=ke(),
@@ -3008,7 +3001,7 @@ function lj(){
         O = o.some(C => C.status === "pending"),
         M = h.tutorial_active === "true" || h.tutorial_active === true || (h.tutorial_active !== "false" && h.tutorial_active !== false && !!h.tutorial_video_url),
         G = h.tutorial_video_url || "",
-        upiId = ((h.upi_id && h.upi_id.includes("@") && !h.upi_id.includes(" ")) ? h.upi_id : ((typeof window!=="undefined"&&localStorage.getItem("settings_upi_id")&&localStorage.getItem("settings_upi_id").includes("@")&&!localStorage.getItem("settings_upi_id").includes(" ")) ? localStorage.getItem("settings_upi_id") : "grejamarak@oksbi")).trim();
+        upiId = ((h && h.upi_id !== undefined && h.upi_id !== null && h.upi_id !== "") ? h.upi_id : ((typeof window!=="undefined" && (localStorage.getItem("settings_upi_id") || localStorage.getItem("app_upi_id"))) ? (localStorage.getItem("settings_upi_id") || localStorage.getItem("app_upi_id")) : "grejamarak@oksbi")).trim();
 
   const getUpiUrl = (app, amount, planName) => {
     const cleanUpi = (upiId || "merilocalbazaar@upi").trim();
